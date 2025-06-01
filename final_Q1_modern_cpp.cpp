@@ -104,7 +104,7 @@ std::optional<std::chrono::milliseconds> exact_string_search(
 
     // C++14: range-based for with auto
     for (auto t = 0; t < actual_threads; ++t) {
-        threads.emplace_back(create_thread(t));
+        threads.emplace_back(create_thread(t));             
     }
 
     // C++17: range-based for with auto and reference
@@ -112,7 +112,7 @@ std::optional<std::chrono::milliseconds> exact_string_search(
         thread.join();
     }
     
-    const auto end_time = std::chrono::high_resolution_clock::now();
+    const auto end_time = std::chrono::high_resolution_clock::now();   //end time for the calculating the overall time
     const auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(
         end_time - start_time);
     
@@ -146,7 +146,7 @@ int main() {
     for (auto i = 0; i < n; ++i) {
         auto word = std::string{};
         std::getline(std::cin, word);
-        word_list.emplace_back(std::move(word));  // C++14: move semantics
+        word_list.emplace_back(std::move(word));  // C++14: move semantics      //For efficient container operations
     }
     
     auto pattern = std::string{};
@@ -174,4 +174,4 @@ int main() {
     }
 
     return 0;
-}S
+}
