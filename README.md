@@ -1,7 +1,7 @@
 # Poozle_app_mm24b005_Sanskar_Gunde
 This is a public repository for the "poozle" app codes and their explanation. 
 
-#Question 1 - "Exact Searching" 
+## Question 1 - "Exact Searching" 
 # Multithreaded String Search
 
 A high-performance, multithreaded C++ application for searching strings using regex patterns with support for exact match, starts with, ends with, and contains operations.
@@ -92,6 +92,67 @@ main()
 - Graceful handling of regex compilation errors
 
 -----------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+ ## Q3) Weird ways to operate 
+# 🔍 Hidden Instruction Parser
+
+
+Each line contains **gibberish text** but may also contain hidden instructions of these forms:
+
+- `do_mul()` or `don't_mul()` → enable/disable multiplication
+- `do_add()` or `don't_add()` → enable/disable addition
+- `add(x, y)` → add x + y to result if addition is enabled
+- `mul(x, y)` → add x * y to result if multiplication is enabled
+
+### ✅ Initial State
+- Both **addition and multiplication are enabled**
+- Result starts from **0**
+
+Your task is to parse all lines, extract valid operations, and compute the final result by **applying only valid instructions** in the correct order.
+
+---
+
+## 🛠️ How the Code Works
+
+### 1. **Regex Patterns**
+- Used to detect valid instructions (e.g., `add(3,4)`, `do_add()`).
+- Precompiled using `std::regex` for speed and clarity.
+
+### 2. **Multithreaded Token Extraction**
+- Uses up to 4 threads to extract tokens (instructions) from the input lines.
+- Faster than single-threaded parsing for large files.
+
+### 3. **Token Processing**
+- Iterates through all extracted instructions in order.
+- Tracks `add_enabled` and `mul_enabled` flags.
+- Applies addition/multiplication only if the corresponding flag is enabled.
+
+---
+
+## 📄 Code Structure
+
+| Part                      | Purpose                                                         |
+|---------------------------|-----------------------------------------------------------------|
+| `extractTokensPerLine`    | Extracts valid tokens using regex in parallel                   |
+| `main()`                  | Reads input, launches threads, processes instructions, prints result |
+| `std::regex`              | Matches valid commands from each line                           |
+| `std::cref`, `std::ref`   | Efficiently passes data to threads without copying              |
+| `std::cin.tie(nullptr)`   | Speeds up input by disabling flush between `cin` and `cout`     |
+
+---
+
+## 🚀 How to Run
+
+### 🧾 Input Format
+1. First line: integer `n` (number of lines)
+2. Next `n` lines: each line containing random text with hidden instructions
+
+### ⌨️ Compile and Run
+
+```bash
+g++ -std=c++17 -pthread -o parser main.cpp
+./parser
+
 
 
 
