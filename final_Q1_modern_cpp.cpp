@@ -1,177 +1,171 @@
-#include <iostream>  // For standard input output
-#include <vector>    // For storing strings in vector
-#include <string>    // For string manipulations
-#include <thread>    // For thread creation
-#include <mutex>     // For avoiding data racing and overwriting of vector
-#include <regex>     // For regex searching
-#include <algorithm> // For algorithms
-#include <string_view> // C++17 string_view for efficient string handling
-#include <optional>  // C++17 optional
-#include <chrono>    // For timing
+#include <iostream>
+#include <fstream>
+#include <vector>
+#include <string>
+#include <string_view>
+#include <regex>
+#include <thread>
+#include <mutex>
+#include <chrono>
+#include <optional>
+#include <algorithm>
 
 std::mutex result_mutex;
 
-// C++14: Generic lambda with auto parameters
-// C++17: constexpr if for compile-time branching
-constexpr std::string_view special_chars = "^$.*+?()[]{}|\\";
+class RegexBuilder {
+public:
+    static std::regex build(std::string_view pattern, bool ignore_case = false) {
+        constexpr std::string_view special_chars = "^$.*+?()[]{}|\\";
+        auto escape_char = [](char c) -> std::string {
+            return (special_chars.find(c) != std::string_view::npos)
+                ? std::string("\\") + c
+                : std::string(1, c);
+        };
 
-// C++17: structured binding and string_view for better performance
-std::regex build_search_regex(std::string_view pattern) {
-    // C++14: using generic lambda with auto
-    auto escape_char = [](char c) -> std::string {
-        if (special_chars.find(c) != std::string_view::npos) {
-            return std::string("\\") + c;
+        std::string escaped_pattern;
+        for (const auto& c : pattern) {
+            escaped_pattern += escape_char(c);
         }
-        return std::string(1, c);
-    };
-    
-    std::string escaped_pattern;
-    // C++17: range-based for with structured binding would be ideal, but for chars we use traditional
-    for (const auto& c : pattern) {
-        escaped_pattern += escape_char(c);
+
+        using namespace std::string_literals;
+        std::string regex_pattern = "^"s + escaped_pattern + "$"s +           // exact match
+                                    "|^.*"s + escaped_pattern + "$"s +        // ends with
+                                    "|^"s + escaped_pattern + ".*$"s +        // starts with
+                                    "|^.*"s + escaped_pattern + ".*$"s;       // contains
+
+        return std::regex(regex_pattern, ignore_case ? std::regex_constants::icase : std::regex_constants::ECMAScript);
     }
-    
-    // C++14: using string literal operator and better string concatenation
-    using namespace std::string_literals;
-    auto regex_pattern = "^"s + escaped_pattern + "$"s +           // exact match
-                        "|^.*"s + escaped_pattern + "$"s +         // ends with
-                        "|^"s + escaped_pattern + ".*$"s +         // starts with
-                        "|^.*"s + escaped_pattern + ".*$"s;        // contains
-    
-    return std::regex(regex_pattern);
-}
-
-// C++17: using std::string_view for better performance
-void regex_search_chunk(const std::vector<std::string>& words,
-                        const std::regex& search_regex,
-                        size_t start, size_t end,
-                        std::vector<std::string>& results) {
-    std::vector<std::string> local_results;
-    
-    // C++17: structured binding for cleaner iteration (if we had pairs)
-    // Here we use range-based for with modern approach
-    for (auto i = start; i < end; ++i) {
-        if (std::regex_match(words[i], search_regex)) {
-            local_results.emplace_back(words[i]);  // C++14: emplace_back instead of push_back
-        }
-    }
-
-    // C++17: lock_guard with template argument deduction
-    std::lock_guard lock{result_mutex};  // CTAD - Class Template Argument Deduction
-    
-    // C++14: using move semantics for better performance
-    results.insert(results.end(), 
-                   std::make_move_iterator(local_results.begin()), 
-                   std::make_move_iterator(local_results.end()));
-}
-
-// C++14: auto return type deduction
-auto calculate_optimal_threads(size_t data_size) -> int {
-    // Default to 4 threads or data_size if smaller
-    return std::min(4, static_cast<int>(data_size));
-}
-
-// C++17: optional return type for error handling
-std::optional<std::chrono::milliseconds> exact_string_search(
-    const std::vector<std::string>& words,
-    std::string_view pattern,
-    std::vector<std::string>& results,
-    std::optional<int> num_threads = std::nullopt) {
-    
-    if (words.empty()) {
-        return std::nullopt;  // C++17: return nullopt for empty input
-    }
-    
-    // C++17: using auto with structured binding for time measurement
-    const auto start_time = std::chrono::high_resolution_clock::now();
-    
-    // C++14: auto type deduction with initialization
-    const auto actual_threads = num_threads.value_or(calculate_optimal_threads(words.size()));
-    
-    const auto chunk_size = words.size() / actual_threads;
-    std::vector<std::thread> threads;
-    threads.reserve(actual_threads);  // C++14: reserve for better performance
-    
-    const auto search_regex = build_search_regex(pattern);
-
-    // C++14: generic lambda for thread creation
-    auto create_thread = [&](int t) {
-        const auto start = t * chunk_size;
-        const auto end = (t == actual_threads - 1) ? words.size() : start + chunk_size;
-        return std::thread{regex_search_chunk, std::cref(words), 
-                          std::cref(search_regex), start, end, std::ref(results)};
-    };
-
-    // C++14: range-based for with auto
-    for (auto t = 0; t < actual_threads; ++t) {
-        threads.emplace_back(create_thread(t));             
-    }
-
-    // C++17: range-based for with auto and reference
-    for (auto& thread : threads) {
-        thread.join();
-    }
-    
-    const auto end_time = std::chrono::high_resolution_clock::now();   //end time for the calculating the overall time
-    const auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(
-        end_time - start_time);
-    
-    return duration;  // C++17: return optional with timing info
-}
-
-// C++14: generic lambda for input validation
-auto validate_input = [](int n) -> bool {
-    return n > 0 && n <= 1000000;  // reasonable limits
 };
 
-int main() {
-    // C++14: using auto for type deduction
-    auto word_list = std::vector<std::string>{};
-    auto n = 0;
-    
-    std::cout << "Enter number of words: ";
-    std::cin >> n;
-    
-    if (!validate_input(n)) {
-        std::cout << "Invalid input. Please enter a number between 1 and 1,000,000.\n";
-        return 1;
-    }
-    
-    std::cin.ignore();
-    word_list.reserve(n);  // C++14: reserve capacity for better performance
-    
-    std::cout << "Enter " << n << " words:\n";
-    
-    // C++14: range-based for with auto
-    for (auto i = 0; i < n; ++i) {
-        auto word = std::string{};
-        std::getline(std::cin, word);
-        word_list.emplace_back(std::move(word));  // C++14: move semantics      //For efficient container operations
-    }
-    
-    auto pattern = std::string{};
-    std::cout << "Enter search pattern: ";
-    std::getline(std::cin, pattern);
+class SearchEngine {
+public:
+    static void search_chunk(const std::vector<std::string>& words, const std::regex& search_regex,
+                             size_t start, size_t end, std::vector<std::string>* results,
+                             std::atomic<size_t>* count, bool store_matches) {
+        std::vector<std::string> local_results;
 
-    auto results = std::vector<std::string>{};
-    
-    // C++17: if with initializer and optional handling
-    if (const auto timing = exact_string_search(word_list, pattern, results); timing) {
-        std::cout << "\nSearch completed in " << timing->count() << "ms\n";
-        std::cout << "Matches found (" << results.size() << "):\n";
-        
-        if (results.empty()) {
-            std::cout << "No matches found.\n";
-        } else {
-            // C++17: range-based for with const auto&
-            for (const auto& word : results) {
-                std::cout << word << '\n';
+        for (size_t i = start; i < end; ++i) {
+            if (std::regex_match(words[i], search_regex)) {
+                if (store_matches) {
+                    local_results.emplace_back(words[i]);
+                } else {
+                    ++(*count);
+                }
             }
         }
-    } else {
-        std::cout << "Search failed - empty input.\n";
+
+        if (store_matches && results) {
+            std::lock_guard<std::mutex> lock(result_mutex);
+            results->insert(results->end(),
+                            std::make_move_iterator(local_results.begin()),
+                            std::make_move_iterator(local_results.end()));
+        }
+    }
+
+    static std::optional<std::chrono::milliseconds> search(const std::vector<std::string>& words,
+        std::string_view pattern,
+        std::vector<std::string>* results,
+        bool ignore_case = false,
+        bool store_matches = true,
+        std::optional<int> num_threads = std::nullopt,
+        std::optional<std::atomic<size_t>*> match_count = std::nullopt) {
+
+        if (words.empty()) return std::nullopt;
+
+        auto start_time = std::chrono::high_resolution_clock::now();
+        int threads_to_use = num_threads.value_or(std::min<int>(std::thread::hardware_concurrency(), 8));
+        size_t chunk_size = words.size() / threads_to_use;
+
+        std::vector<std::thread> threads;
+        threads.reserve(threads_to_use);
+        std::regex search_regex = RegexBuilder::build(pattern, ignore_case);
+
+        for (int t = 0; t < threads_to_use; ++t) {
+            size_t start = t * chunk_size;
+            size_t end = (t == threads_to_use - 1) ? words.size() : start + chunk_size;
+
+            threads.emplace_back(search_chunk, std::cref(words), std::cref(search_regex),
+                                 start, end, results,
+                                 match_count.value_or(nullptr), store_matches);
+        }
+
+        for (auto& thread : threads) {
+            thread.join();
+        }
+
+        auto end_time = std::chrono::high_resolution_clock::now();
+        return std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time);
+    }
+};
+
+bool validate_input(int n) {
+    return n > 0 && n <= 1000000;
+}
+
+std::vector<std::string> load_words_from_file(const std::string& filepath) {
+    std::ifstream infile(filepath);
+    std::vector<std::string> words;
+    std::string word;
+    while (std::getline(infile, word)) {
+        if (!word.empty()) words.emplace_back(std::move(word));
+    }
+    return words;
+}
+
+int main(int argc, char* argv[]) {
+    if (argc < 3) {
+        std::cout << "Usage: ./search_tool <input_file.txt> <pattern> [--ignore-case] [--count-only] [--threads=N]\n";
         return 1;
     }
+
+    std::string filename = argv[1];
+    std::string pattern = argv[2];
+    bool ignore_case = false;
+    bool count_only = false;
+    int thread_count = 0;
+
+    for (int i = 3; i < argc; ++i) {
+        std::string arg = argv[i];
+        if (arg == "--ignore-case") ignore_case = true;
+        else if (arg == "--count-only") count_only = true;
+        else if (arg.rfind("--threads=", 0) == 0)
+            thread_count = std::stoi(arg.substr(9));
+    }
+
+    auto words = load_words_from_file(filename);
+    if (words.empty()) {
+        std::cerr << "Failed to read words from file or file is empty.\n";
+        return 1;
+    }
+
+    std::vector<std::string> matches;
+    std::atomic<size_t> match_counter{0};
+    auto timing = SearchEngine::search(
+        words, pattern,
+        count_only ? nullptr : &matches,
+        ignore_case, !count_only,
+        thread_count ? std::optional<int>{thread_count} : std::nullopt,
+        count_only ? std::optional<std::atomic<size_t>*>(&match_counter) : std::nullopt
+    );
+
+    if (!timing) {
+        std::cerr << "Search failed.\n";
+        return 1;
+    }
+
+    std::cout << "Search completed in " << timing->count() << "ms\n";
+    size_t match_count = count_only ? match_counter.load() : matches.size();
+    std::cout << "Matches found: " << match_count << "\n";
+
+    if (!count_only && !matches.empty()) {
+        for (const auto& match : matches) {
+            std::cout << match << '\n';
+        }
+    }
+
+    // Optional: log to benchmark.csv
+    std::ofstream log("benchmark.csv", std::ios::app);
+    log << pattern << "," << match_count << "," << timing->count() << "ms\n";
 
     return 0;
 }
